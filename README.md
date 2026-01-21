@@ -1,6 +1,21 @@
 ## Roster Simulation Package
 
-This package runs roster simulations using a trained VeloRost-Ex model to recommend optimal team rosters for upcoming races. It evaluates thousands of roster combinations and produces data-driven leader and helper recommendations.
+**A simulation engine for data-driven roster optimization in professional road cycling.**
+
+## About
+
+This package provides a practical simulation engine that leverages the VeloRost-Ex ranking model to generate actionable roster recommendations for upcoming race seasons. Built on top of the [VeloRost-Ex framework](https://github.com/denisrize/VeloRost-Ex), which uses Bayesian dual-skill modeling to predict race outcomes, this engine enables team managers to:
+
+- **Simulate thousands of roster combinations** for specific races
+- **Identify optimal leader-helper pairings** based on race profile and terrain
+- **Receive confidence-scored recommendations** for strategic team selection
+- **Plan rosters across an entire season** using predicted performance metrics
+
+The engine takes trained models from the VeloRost-Ex pipeline and applies them to real-world roster planning scenarios, transforming predictive rankings into practical team management decisions.
+
+**Key Links:**
+- 🔗 **Training Framework**: [VeloRost-Ex](https://github.com/denisrize/VeloRost-Ex) - Model training and ranking pipeline
+- 📊 **Dataset**: [VeloRost-Ex-Data](https://github.com/denisrize/VeloRost-Ex-Data) - Raw race results (2017-2023)
 
 ## Table of Contents
 
@@ -59,12 +74,20 @@ Identifies a past race with similar characteristics:
 
 The reference race provides the competitive field (all other teams' riders) that your simulated roster will compete against.
 
+**Important Heuristic:** The simulation uses the following approach to create realistic race scenarios:
+- **Roster Composition**: Uses the same rival teams and riders who participated in the reference race (typically from the previous season)
+- **Updated Features**: Applies the most current rider features and TrueSkill ratings available at simulation time
+- **Result**: A realistic competitive field with updated performance metrics
+
+This ensures both the target team and rival participants reflect their most recent form and capabilities, while maintaining realistic roster compositions based on historical race participation patterns.
+
 #### 4. **Performance Prediction**
 For each roster combination:
-1. **Constructs team features** by aggregating leader and helper TrueSkill ratings
-2. **Merges with reference race field** (all competitors from the reference race)
-3. **Predicts rankings** using the trained XGBoost model
-4. **Extracts team metrics**:
+1. **Constructs team features** by aggregating leader and helper TrueSkill ratings (using most recent available data)
+2. **Merges with reference race field** (same riders from the reference race, but with updated features reflecting their current form)
+3. **Updates all rider features** to the simulation date, ensuring both the target team and rivals have current performance metrics
+4. **Predicts rankings** using the trained XGBoost model
+5. **Extracts team metrics**:
    - `best_rank`: Best finishing position by any team rider
    - `best_rider`: Name of the rider achieving best_rank
    - `top_10_count`: Number of team riders finishing in top 10
@@ -251,5 +274,5 @@ roster-sim --help
 ## Related Packages
 
 This simulation package works in conjunction with:
-- **[VeloRost-Ex](../roster_ranker/)**: Main training framework for the ranking model
+- **[VeloRost-Ex](https://github.com/denisrize/VeloRost-Ex)**: Main training framework for the ranking model
 - **[VeloRost-Ex-Data](https://github.com/denisrize/VeloRost-Ex-Data)**: Raw race results dataset (2017-2023)
