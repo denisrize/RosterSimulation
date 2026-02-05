@@ -19,7 +19,6 @@ class SimulationPaths:
     rider_features_path: str
     trueskill_leader_path: str
     trueskill_team_path: str
-    hyperparams_path: Optional[str] = None
     feature_columns_path: Optional[str] = None
     feature_columns: Optional[List[str]] = None
     clusters: Optional[List[str]] = None
@@ -34,12 +33,15 @@ class SimulationRunConfig:
     year: int
     level: str
     scheme: str
-    pool_size: int
+    riders_pool: List[int]  # [race_cluster_leader, gc_leader, race_cluster_teammate, gc_teammate]
     roster_size: int
     top_k: int
     output_dir: str
     race_context: RaceContext
     time_gap: Optional[int] = None
+    exclude_riders: Optional[List[str]] = None  # Riders to exclude (e.g., left the team)
+    include_riders: Optional[List[str]] = None  # Riders to include (e.g., new signings)
+    uncertainty_penalty: float = 3.0  # k in rating = mu - k*sigma
 
 
 @dataclass

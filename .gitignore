@@ -165,3 +165,16 @@ Desktop.ini
 # Package-specific: exclude test data or example outputs if needed
 # test_outputs/
 # example_outputs/
+
+# =============================================================================
+# Large Data Files (hosted externally - download via `roster-advisor download-data`)
+# =============================================================================
+# These files exceed GitHub's 100MB limit and are hosted on Zenodo
+# Download URL: https://zenodo.org/records/18493146
+
+# Datasets (CSV files > 100MB)
+roster_advisor/data/datasets/*.csv
+!roster_advisor/data/datasets/.gitkeep
+
+# Keep the models (they're small enough)
+# roster_advisor/data/models/

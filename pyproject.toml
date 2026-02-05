@@ -3,9 +3,9 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "roster-simulation"
+name = "roster-advisor"
 version = "0.1.0"
-description = "Roster simulation engine and recommendation analysis"
+description = "Cycling team roster recommendation engine using ML-based simulation"
 requires-python = ">=3.9"
 dependencies = [
     "numpy>=1.21.0,<2.0.0",  # NumPy 2.x has breaking changes
@@ -16,7 +16,8 @@ dependencies = [
 ]
 
 [project.scripts]
-roster-sim = "simulation_pkg.cli:main"
+roster-advisor = "roster_advisor.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["simulation_pkg"]
+where = ["."]
+include = ["roster_advisor*"]

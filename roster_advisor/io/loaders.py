@@ -29,13 +29,6 @@ def load_dataframe(path: str, parse_dates: Optional[List[str]] = None) -> pd.Dat
     return df
 
 
-def load_hyperparams(path: Optional[str]) -> Optional[dict]:
-    if not path:
-        return None
-    with open(path, "r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
 def load_model(path: str):
     return load_xgb_model(path)
 

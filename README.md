@@ -1,278 +1,336 @@
-## Roster Simulation Package
+# Roster Advisor
 
-**A simulation engine for data-driven roster optimization in professional road cycling.**
+**A recommendation engine for data-driven roster optimization in professional road cycling.**
 
 ## About
 
-This package provides a practical simulation engine that leverages the VeloRost-Ex ranking model to generate actionable roster recommendations for upcoming race seasons. Built on top of the [VeloRost-Ex framework](https://github.com/denisrize/VeloRost-Ex), which uses Bayesian dual-skill modeling to predict race outcomes, this engine enables team managers to:
+Roster Advisor is a recommendation system that leverages machine learning and simulation to generate actionable roster recommendations for professional cycling teams. The engine evaluates thousands of roster combinations and provides confidence-scored recommendations for optimal leader-helper pairings.
 
-- **Simulate thousands of roster combinations** for specific races
+**Key Capabilities:**
+- **Simulate roster combinations** for specific races and evaluate predicted performance
 - **Identify optimal leader-helper pairings** based on race profile and terrain
-- **Receive confidence-scored recommendations** for strategic team selection
-- **Plan rosters across an entire season** using predicted performance metrics
-
-The engine takes trained models from the VeloRost-Ex pipeline and applies them to real-world roster planning scenarios, transforming predictive rankings into practical team management decisions.
-
-**Key Links:**
-- 🔗 **Training Framework**: [VeloRost-Ex](https://github.com/denisrize/VeloRost-Ex) - Model training and ranking pipeline
-- 📊 **Dataset**: [VeloRost-Ex-Data](https://github.com/denisrize/VeloRost-Ex-Data) - Raw race results (2017-2023)
+- **Analyze simulation results** to extract leader and helper recommendations with confidence scores
+- **Evaluate individual rider potential** with supporting cast recommendations
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [How It Works](#how-it-works)
-  - [Simulation Process](#simulation-process)
-  - [Recommendation Logic](#recommendation-logic)
+- [Quick Start](#quick-start)
+- [Data Setup](#data-setup)
+- [Package Structure](#package-structure)
 - [CLI Usage](#cli-usage)
+- [Recommendation Analysis](#recommendation-analysis)
 - [Configuration](#configuration)
 - [Output Examples](#output-examples)
 - [Installation](#installation)
 
-## Overview
+## Quick Start
 
-The simulation package helps team managers answer critical questions:
-- **Who should be the team leader** for a specific race?
-- **Which helpers** work best with each potential leader?
-- **What roster combination** maximizes the team's chances of success?
+### Running a Simulation
 
-Instead of relying on intuition, the package:
-1. Simulates all possible roster combinations from your rider pool
-2. Predicts each combination's performance using the trained VeloRost-Ex model
-3. Analyzes patterns to identify optimal leader-helper pairings
-4. Generates ranked recommendations with confidence scores
+```bash
+# Basic simulation
+roster-advisor run --team "Israel - Premier Tech" --race "Giro d'Italia" --scheme time_lag
 
-## How It Works
-
-### Simulation Process
-
-The simulation engine (`optimizer.py`) follows these steps:
-
-#### 1. **Rider Pool Selection**
-Selects the top N riders (default: 18) from the team based on:
-- **Profile-specific leader skills** (race cluster µ)
-- **GC leader skills** (all-around capability)
-- **Helper skills** (teammate µ for race profile and GC)
-
-This creates a balanced pool representing:
-- ~6 riders strong in the race's specific terrain (e.g., climbers for mountain stages)
-- ~6 riders with strong GC capabilities (versatile all-rounders)
-- ~6 riders with high helper skills (tactical support specialists)
-
-#### 2. **Roster Combination Generation**
-Generates all possible roster combinations:
-```
-C(N, roster_size) = C(18, 8) = 43,758 combinations
+# With additional options
+roster-advisor run \
+  --team "Israel - Premier Tech" \
+  --race "Giro d'Italia" \
+  --scheme time_lag \
+  --num-cyclists 18 \
+  --roster-size 8 \
+  --year 2026 \
+  --output-dir results
 ```
 
-Each combination represents a unique 8-rider roster from the 18-rider pool.
+### Analyzing Results
 
-#### 3. **Reference Race Selection**
-Identifies a past race with similar characteristics:
-- **Same race profile** (e.g., "Hills, flat finish")
-- **Similar competition level** (e.g., WorldTour)
-- **Recent race** (from training data)
+```bash
+# Team-based analysis (identify emergent leaders)
+roster-advisor recommend --csv results/simulation.csv --output recommendations.csv
 
-The reference race provides the competitive field (all other teams' riders) that your simulated roster will compete against.
+# Individual rider analysis (evaluate each rider's potential)
+roster-advisor recommend --csv results/simulation.csv --output individual.csv --individual
+```
 
-**Important Heuristic:** The simulation uses the following approach to create realistic race scenarios:
-- **Roster Composition**: Uses the same rival teams and riders who participated in the reference race (typically from the previous season)
-- **Updated Features**: Applies the most current rider features and TrueSkill ratings available at simulation time
-- **Result**: A realistic competitive field with updated performance metrics
+### Discovery Commands
 
-This ensures both the target team and rival participants reflect their most recent form and capabilities, while maintaining realistic roster compositions based on historical race participation patterns.
+```bash
+roster-advisor list status    # Check data availability
+roster-advisor list teams     # List available teams
+roster-advisor list races     # List available races
+roster-advisor list schemes   # List available schemes
+roster-advisor info "Giro d'Italia"  # Get race information
+```
 
-#### 4. **Performance Prediction**
-For each roster combination:
-1. **Constructs team features** by aggregating leader and helper TrueSkill ratings (using most recent available data)
-2. **Merges with reference race field** (same riders from the reference race, but with updated features reflecting their current form)
-3. **Updates all rider features** to the simulation date, ensuring both the target team and rivals have current performance metrics
-4. **Predicts rankings** using the trained XGBoost model
-5. **Extracts team metrics**:
-   - `best_rank`: Best finishing position by any team rider
-   - `best_rider`: Name of the rider achieving best_rank
-   - `top_10_count`: Number of team riders finishing in top 10
-   - `mean_rank`: Average finishing position across the roster
+## Data Setup
 
-#### 5. **Optimization**
-Tracks the top 10 unique roster combinations by prioritizing:
-1. **Best rank** (primary criterion - minimize)
-2. **Top-10 count** (secondary criterion - maximize)
+The package requires CSV datasets that are too large for GitHub (>100MB). These files are hosted externally on Zenodo and must be downloaded before running simulations.
 
-Results are continuously saved to CSV for incremental analysis.
+### Automatic Download
 
-### Recommendation Logic
+```bash
+# Download all required datasets from Zenodo
+roster-advisor download-data
 
-The recommendation analyzer (`analyze.py`) processes simulation results to extract actionable insights:
+# Check data status without downloading
+roster-advisor download-data --status
 
-#### Leader Recommendations
+# Force re-download existing files
+roster-advisor download-data --force
+```
 
-**Identification Process:**
-1. **Counts leader occurrences**: How many times each rider was the `best_rider` in their roster
-2. **Groups by performance bracket**: Organizes results into rank groups (1-5, 6-10, 11-15, etc.)
-3. **Finds helper co-occurrence**: For each leader, identifies which helpers most frequently appeared in the same successful rosters
+### Manual Download
 
-**Metrics Computed:**
-- `leader_best_rank`: Best finishing position achieved as team leader
-- `avg_personal_rank`: Average predicted rank across all appearances
-- `leader_occurrences`: Number of combinations where this rider led the team
-- `total_occurrences`: Total appearances in any role
-- `recommended_helpers`: Top 7 helpers with occurrence counts and confidence scores
+If automatic download fails, download the datasets manually from:
+- **Zenodo Record:** https://zenodo.org/records/17225472
 
-**Confidence Calculation:**
+Place the following files in `roster_advisor/data/datasets/`:
+- `rider_features.csv` - Historical rider features
+- `trueskill_leader.csv` - Leader TrueSkill ratings (common)
+- `equal_weight_trueskill_team.csv` - Team ratings (equal_weight scheme)
+- `position_trueskill_team.csv` - Team ratings (position scheme)
+- `time_lag_trueskill_team.csv` - Team ratings (time_lag scheme)
+
+### Verify Installation
+
+```bash
+# Check all data files are present
+roster-advisor download-data --status
+
+# Or use the list command
+roster-advisor list status
+```
+
+### Programmatic Usage
+
 ```python
-confidence = (helper_occurrences_with_leader / total_leader_occurrences) × 100
+from roster_advisor import create_config, RosterOptimizer
+from dataclasses import asdict
+
+# Create config
+config = create_config(
+    team="Israel - Premier Tech",
+    race="Giro d'Italia",
+    scheme="time_lag",
+    riders_pool=[4, 4, 4, 4],  # 16 riders total
+    roster_size=8,
+)
+
+# Run simulation
+optimizer = RosterOptimizer(
+    model_path=config.paths.model_path,
+    rider_features_path=config.paths.rider_features_path,
+    trueskill_leader_path=config.paths.trueskill_leader_path,
+    trueskill_team_path=config.paths.trueskill_team_path,
+    ...
+)
+
+optimizer.simulate_best_rosters(
+    team_name=config.run.team_name,
+    race_name=config.run.race_name,
+    race_context=asdict(config.run.race_context),
+    ...
+)
 ```
 
-Example: If a helper appeared in 45 out of 50 combinations where a specific leader performed best, their confidence is 90%.
+## Package Structure
 
-#### Helper Recommendations
-
-**Ranking Process:**
-1. **Total occurrences**: How many successful roster combinations included this rider
-2. **Average personal rank**: Mean predicted finishing position
-3. **Best team rank contribution**: Best team result when this rider was a helper
-4. **Confidence**: Percentage of top combinations including this rider
-
-**Key Insight:** High-confidence helpers appear in many successful rosters, regardless of who the leader is. These are versatile tactical assets.
+```
+roster_advisor/
+├── cli.py                    # Command-line interface
+├── __init__.py               # Package exports
+│
+├── engine/                   # Core recommendation engine
+│   ├── optimizer.py          # Roster optimization and simulation
+│   ├── features.py           # Feature aggregation for rosters
+│   └── reference_race.py     # Reference race selection
+│
+├── analysis/                 # Results analysis module
+│   ├── analyze.py            # Leader/helper recommendation analysis
+│   └── README.md             # Detailed analysis documentation
+│
+├── utils/                    # Utility modules
+│   ├── config.py             # Configuration management
+│   ├── data_registry.py      # Data file registry and validation
+│   └── types.py              # Type definitions
+│
+├── models/                   # ML model utilities
+│   └── xgb_wrapper.py        # XGBoost model wrapper
+│
+├── io/                       # Data I/O
+│   └── loaders.py            # Data loading utilities
+│
+└── data/                     # Internal data (models, datasets, catalogs)
+    ├── models/               # Pre-trained XGBoost models
+    ├── datasets/             # Rider features and TrueSkill ratings
+    ├── races/                # Race catalog
+    └── teams/                # Team catalog
+```
 
 ## CLI Usage
 
+### Simulation Command
+
 ```bash
-# Run simulation for a specific race
-roster-sim simulate --config path/to/sim_config.json
+roster-advisor run [OPTIONS]
 
-# Analyze a single simulation result
-roster-sim recommend --csv path/to/top10_progress.csv --output out/recs --top_leaders 3
+Required:
+  --team, -t          Team name (e.g., "Israel - Premier Tech")
+  --race, -r          Race name (e.g., "Giro d'Italia")
 
-# Batch analyze multiple simulation results
-roster-sim recommend-batch --input_dir results/roster_sims --output_dir out/recs --top_leaders 3
+Optional:
+  --scheme, -s        Weighting scheme: time_lag, equal_weight, position (default: time_lag)
+  --num-cyclists, -n  Total cyclists in selection pool (default: 16)
+  --riders-pool       Custom riders per category: "N1,N2,N3,N4"
+  --roster-size       Number of cyclists per roster (default: 8)
+  --year, -y          Season year (default: current year)
+  --time-horizon      Days before race for feature cutoff
+  --output-dir, -o    Output directory (default: results)
+  --exclude-riders    Comma-separated riders to exclude
+  --include-riders    Comma-separated riders to include
+  --uncertainty-penalty, -k  Rating penalty k in μ - kσ (default: 3.0)
 ```
+
+### Recommendation Command
+
+```bash
+roster-advisor recommend [OPTIONS]
+
+Required:
+  --csv               Path to simulation results CSV
+  --output            Output file path (.json or .csv)
+
+Optional:
+  --individual        Analyze each rider's personal best (instead of team-based)
+  --top_leaders       Number of top leaders to show (team mode)
+  --top_helpers       Number of top helpers per rider (individual mode, default: 7)
+```
+
+### Download Data Command
+
+```bash
+roster-advisor download-data [OPTIONS]
+
+Optional:
+  --status            Only check data status without downloading
+  --force             Re-download files even if they already exist
+```
+
+## Recommendation Analysis
+
+The analysis module provides two complementary approaches:
+
+### 1. Team-Based Analysis (Default)
+
+Identifies **emergent leaders** based on who achieved the team's best rank in each combination.
+
+```bash
+roster-advisor recommend --csv results/simulation.csv --output team_recs.csv
+```
+
+**Output includes:**
+- Leaders grouped by rank buckets (1-5, 6-10, etc.)
+- Recommended helpers with confidence scores
+- Helper statistics (occurrence, avg rank, best team contribution)
+
+### 2. Individual Analysis (`--individual`)
+
+Evaluates each rider's **personal best potential** regardless of teammates.
+
+```bash
+roster-advisor recommend --csv results/simulation.csv --output individual.csv --individual
+```
+
+**Output includes:**
+- Each rider's best achievable rank
+- Confidence (how often they achieve their best rank group)
+- Recommended helpers for their peak performance
+
+See `analysis/README.md` for detailed documentation on the analysis logic.
 
 ## Configuration
 
-```json
-{
-  "paths": {
-    "model_path": "models/model.json",
-    "hyperparams_path": "models/hyperparams.json",
-    "rider_features_path": "data_sets/rider_features/rider_features.csv",
-    "trueskill_leader_path": "data_sets/leader_power/leader.csv",
-    "trueskill_team_path": "data_sets/team_power/team.csv",
-    "feature_columns_path": "configs/feature_columns.json",
-    "clusters": ["Flat", "Hills, flat finish", "Hills, uphill finish",
-      "Mountains, flat finish", "Mountains, uphill finish", "Time Trial"],
-    "leader_feature_columns": ["race_cluster_leader_mu", "race_cluster_leader_sigma", "gc_leader_mu", "gc_leader_sigma"],
-    "teammate_feature_columns": ["race_cluster_teammate_mu", "race_cluster_teammate_sigma", "gc_teammate_mu", "gc_teammate_sigma"]
-  },
-  "run": {
-    "team_name": "Israel - Premier Tech",
-    "race_name": "Giro d'Italia",
-    "year": 2026,
-    "level": "rider",
-    "scheme": "time_lag",
-    "pool_size": 18,
-    "roster_size": 8,
-    "top_k": 10,
-    "output_dir": "results/roster_sims",
-    "race_context": {
-      "cluster": "Hills, uphill finish",
-      "classification": "WT",
-      "date": "2026-05-01",
-      "distance": 180.0,
-      "verticalMeters": 3000.0
-    }
-  }
-}
-```
+### User Parameters
 
-**Key Parameters:**
-- `pool_size`: Number of riders to consider (default: 18)
-- `roster_size`: Number of riders per roster (default: 8)
-- `top_k`: Number of top combinations to save
-- `race_context.cluster`: Race terrain profile
-- `race_context.classification`: Competition tier (WT, Pro, 1, 2)
-- `race_context.date`: Race date for feature extraction cutoff
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `team` | Team name (must exist in team catalog) | Required |
+| `race` | Race name (must exist in race catalog) | Required |
+| `scheme` | Weighting scheme: `time_lag`, `equal_weight`, `position` | `time_lag` |
+| `riders_pool` | Riders per category [leader, gc_leader, helper, gc_helper] | `[4,4,4,4]` |
+| `roster_size` | Number of cyclists per roster | 8 |
+| `year` | Season year | Current year |
+| `time_horizon` | Days before race for feature cutoff | None |
+| `output_dir` | Output directory for results | `results` |
+| `exclude_riders` | Riders to exclude from pool | None |
+| `include_riders` | Riders to include in pool | None |
+| `uncertainty_penalty` | k in rating = μ - kσ | 3.0 |
+
+### Programmatic Configuration
+
+```python
+from roster_advisor import create_config, UserConfig, ConfigBuilder
+
+# Option 1: Use create_config convenience function
+config = create_config(
+    team="Israel - Premier Tech",
+    race="Giro d'Italia",
+    scheme="time_lag",
+)
+
+# Option 2: Build config manually
+user_config = UserConfig(
+    team_name="Israel - Premier Tech",
+    race_name="Giro d'Italia",
+    scheme="time_lag",
+    riders_pool=[5, 4, 4, 3],
+    roster_size=8,
+)
+builder = ConfigBuilder()
+config = builder.build(user_config)
+```
 
 ## Output Examples
 
 ### Leader Recommendations
 
-Example output from **E3 Saxo Classic** (Hills, flat finish):
+| name | rank_group | occurrences | avg_rank | recommended_helpers |
+|------|------------|-------------|----------|---------------------|
+| ACKERMANN Pascal | Rnk(1,5) | 241 | 5.27 | VAN TRICHT (82.2%), BLACKMORE (67.6%) |
+| STRONG Corbin | Rnk(1,5) | 20 | 6.63 | VAN TRICHT (100%), BLACKMORE (95%) |
 
-| name | leader_best_rank | avg_personal_rank | leader_occurrences | total_occurrences | recommended_helpers |
-|------|------------------|-------------------|-------------------|-------------------|---------------------|
-| **GIRMAY Biniam** | 2 | 3.04 | 5,874 | 5,874 | ACKERMANN Pascal (99%), STRONG Corbin (98%), PICKRELL Riley (97%) |
-| **ACKERMANN Pascal** | 4 | 5.67 | 2,823 | 8,987 | STRONG Corbin (95%), PICKRELL Riley (93%), BLACKMORE Joseph (89%) |
-| **STRONG Corbin** | 4 | 6.77 | 290 | 3,568 | ACKERMANN Pascal (94%), PICKRELL Riley (91%), HOFSTETTER Hugo (87%) |
-
-**Interpretation:**
-- **GIRMAY Biniam** is the strongest leader candidate:
-  - Expected to finish **2nd place** in the best scenario
-  - Led the team in **5,874 out of ~9,000** evaluated combinations (65%)
-  - Works best with **ACKERMANN Pascal** (appeared together in 99% of successful rosters)
-  
-- **ACKERMANN Pascal** is a secondary option:
-  - Can achieve **4th place** as leader
-  - Also appears frequently as a helper (8,987 total appearances)
-  - Dual-role capability makes him valuable for roster flexibility
+**Interpretation:** ACKERMANN emerges as leader with top-5 finish in 241 combinations. VAN TRICHT appears in 82.2% of those combinations, indicating strong synergy.
 
 ### Helper Recommendations
 
-Example helper rankings for the same race:
-
 | name | total_occurrences | avg_personal_rank | helper_best_team_rank | confidence |
 |------|-------------------|-------------------|----------------------|------------|
-| **ASKEY Lewis** | 4,771 | 31.95 | 2 | 53.09% |
-| **BLACKMORE Joseph** | 4,406 | 18.54 | 2 | 49.03% |
-| **BENNETT George** | 4,392 | 101.13 | 2 | 48.87% |
-| **PICKRELL Riley** | 3,559 | 9.61 | 2 | 39.60% |
-| **HOFSTETTER Hugo** | 2,857 | 14.50 | 2 | 31.79% |
+| ACKERMANN Pascal | 330 | 5.27 | 6 | 66.67% |
+| BLACKMORE Joseph | 330 | 23.75 | 5 | 66.67% |
 
-**Interpretation:**
-- **ASKEY Lewis** appears in **53%** of top combinations:
-  - Contributed to rosters achieving the **best team rank of 2nd place**
-  - Average personal finish: **~32nd place** (tactical helper role)
-  - High confidence indicates consistent value regardless of leader choice
-
-- **PICKRELL Riley** shows dual capability:
-  - Average personal rank of **9.61** suggests podium potential
-  - Can serve as either primary helper or backup leader
-  - Lower confidence (39.6%) indicates more selective pairing
-
-**Helper Categories Identified:**
-1. **Tactical Specialists** (e.g., ASKEY Lewis): High occurrence, moderate personal rank - pure support role
-2. **Dual-Threat Riders** (e.g., PICKRELL Riley): High occurrence, strong personal rank - can lead or support
-3. **Depth Options** (e.g., BENNETT George): Frequent appearance despite poor personal rank - reliable tactical asset
-
-### Simulation Output Files
-
-Each simulation produces:
-
-1. **`{team}_{race}_{profile}_top10_progress.csv`**: Top 10 roster combinations with detailed metrics
-2. **`{team}_{race}_{profile}_leaders.csv`**: Leader recommendations with helper pairings
-3. **`{team}_{race}_{profile}_helpers.csv`**: Helper rankings by occurrence and confidence
-4. **`{team}_{race}_{profile}_README.txt`**: Column descriptions and metadata
+**Interpretation:** BLACKMORE consistently appears in successful rosters and contributes to achieving top-5 team results.
 
 ## Installation
 
 ```bash
-# Install the package in development mode
-cd simulation_pkg
+# Navigate to package directory
+cd roster_advisor
+
+# Install in development mode
 pip install -e .
 
+# Download required datasets from Zenodo
+roster-advisor download-data
+
 # Verify installation
-roster-sim --help
+roster-advisor --help
+roster-advisor list status
 ```
 
 ## Dependencies
 
 - `pandas >= 1.3.0`
-- `numpy >= 1.21.0`
+- `numpy >= 1.21.0, < 2.0.0`
 - `xgboost >= 1.5.0`
 - `tqdm >= 4.62.0`
-
-## Related Packages
-
-This simulation package works in conjunction with:
-- **[VeloRost-Ex](https://github.com/denisrize/VeloRost-Ex)**: Main training framework for the ranking model
-- **[VeloRost-Ex-Data](https://github.com/denisrize/VeloRost-Ex-Data)**: Raw race results dataset (2017-2023)
+- `trueskill`

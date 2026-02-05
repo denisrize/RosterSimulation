@@ -1,0 +1,12 @@
+# Place your dataset CSV files here:
+#
+# Common (shared across all schemes):
+#   - rider_features.csv
+#   - trueskill_leader.csv
+#
+# Scheme-specific (team/helper TrueSkill only):
+#   - time_lag_trueskill_team.csv
+#   - equal_weight_trueskill_team.csv
+#   - position_trueskill_team.csv
+#
+# Only add team files for the schemes you plan to use.

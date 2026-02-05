@@ -10,18 +10,21 @@ from __future__ import annotations
 import os
 import json
 from itertools import combinations
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timedelta
+from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 import xgboost as xgb
 from tqdm import tqdm
 
-from ..io.loaders import load_dataframe, load_feature_columns, load_hyperparams, load_model
+from ..io.loaders import load_dataframe, load_feature_columns, load_model
 from ..models.xgb_wrapper import predict_scores
 from .features import add_roster_aggregations, reconstruct_team_roster_features
 from .reference_race import load_reference_races, select_reference_race
+
+if TYPE_CHECKING:
+    from ..utils.types import SimulationConfig
 
 
 class RosterOptimizer:
@@ -30,14 +33,65 @@ class RosterOptimizer:
     and predicting their performance using a trained model.
     """
 
+    @classmethod
+    def from_config(cls, config: "SimulationConfig") -> "RosterOptimizer":
+        """
+        Create a RosterOptimizer from a SimulationConfig object.
+        
+        This is the recommended way to create an optimizer when using
+        the simplified configuration API.
+        
+        Args:
+            config: SimulationConfig object (from create_config or load_config)
+            
+        Returns:
+            Configured RosterOptimizer instance
+            
+        Example:
+            >>> from simulation_pkg import create_config, RosterOptimizer
+            >>> config = create_config(
+            ...     team="Israel - Premier Tech",
+            ...     race="Giro d'Italia",
+            ...     scheme="time_lag",
+            ... )
+            >>> optimizer = RosterOptimizer.from_config(config)
+        """
+        from ..io.loaders import load_feature_columns
+        
+        # Try to load feature columns, but they're optional since we can get them from the model
+        feature_columns = None
+        try:
+            feature_columns = load_feature_columns(
+                config.paths.feature_columns,
+                config.paths.feature_columns_path,
+            )
+        except (ValueError, FileNotFoundError):
+            # Feature columns will be extracted from the model instead
+            pass
+        
+        return cls(
+            model_path=config.paths.model_path,
+            rider_features_path=config.paths.rider_features_path,
+            trueskill_leader_path=config.paths.trueskill_leader_path,
+            trueskill_team_path=config.paths.trueskill_team_path,
+            feature_columns=feature_columns,
+            leader_feature_columns=config.paths.leader_feature_columns,
+            teammate_feature_columns=config.paths.teammate_feature_columns,
+            clusters=config.paths.clusters,
+            race_class="all",
+            scheme=config.run.scheme,
+            year=config.run.year,
+            level=config.run.level,
+            time_gap=config.run.time_gap,
+        )
+
     def __init__(
         self,
         model_path: str,
         rider_features_path: str,
         trueskill_leader_path: str,
         trueskill_team_path: str,
-        feature_columns: list,
-        hyperparams_path: Optional[str] = None,
+        feature_columns: Optional[list] = None,
         leader_feature_columns: Optional[list] = None,
         teammate_feature_columns: Optional[list] = None,
         clusters: Optional[list] = None,
@@ -46,10 +100,8 @@ class RosterOptimizer:
         year: int = 2026,
         level: str = "rider",
         time_gap: Optional[int] = None,
-        exp_name: str = "class_features",
     ):
         self.model_path = model_path
-        self.hyperparams_path = hyperparams_path
         self.rider_features_path = rider_features_path
         self.trueskill_leader_path = trueskill_leader_path
         self.trueskill_team_path = trueskill_team_path
@@ -57,18 +109,20 @@ class RosterOptimizer:
         self.scheme = scheme
         self.year = year
         self.level = level
-        self.time_gap = time_gap
-        self.exp_name = exp_name
+        self.time_gap = time_gap # For future use (right now works only or start of the season)
 
         self.feature_columns = feature_columns
         self.leader_feature_columns = leader_feature_columns
         self.teammate_feature_columns = teammate_feature_columns
         self.clusters = clusters
 
-        self.hyperparams = self._load_hyperparameters()
         self.model = load_model(self.model_path) if model_path else None
         if self.model is None and model_path:
             raise ValueError(f"Failed to load model from: {model_path}")
+        
+        # Auto-extract and reorder feature columns from the model
+        if self.model is not None:
+            self.feature_columns = self._align_feature_columns_with_model()
 
         self.rider_features = self._load_rider_features()
         self.trueskill_ratings = self._load_trueskill_ratings()
@@ -81,27 +135,50 @@ class RosterOptimizer:
         print(f"  Race class: {race_class}")
         print(f"  Scheme: {scheme}")
         print(f"  Year: {year}")
+        print(f"  Feature columns: {len(self.feature_columns)} (from model)")
         print(f"  Rider features loaded: {len(self.rider_features)} records")
         print(f"  TrueSkill ratings loaded: {len(self.trueskill_ratings)} records")
 
-    def _load_hyperparameters(self):
-        if self.hyperparams_path and os.path.exists(self.hyperparams_path):
-            try:
-                hyperparams = load_hyperparams(self.hyperparams_path)
-                print(f"✓ Hyperparameters loaded from: {self.hyperparams_path}")
-                if hyperparams:
-                    print("  Model parameters:")
-                    for key, value in hyperparams.items():
-                        if key != "optimal_num_boost_round":
-                            print(f"    {key}: {value}")
-                    if "optimal_num_boost_round" in hyperparams:
-                        print(f"  Training rounds: {hyperparams['optimal_num_boost_round']}")
-                return hyperparams
-            except Exception as e:
-                print(f"⚠ Could not load hyperparameters: {e}")
-        else:
-            print(f"⚠ No hyperparameters file provided")
-        return None
+    def _align_feature_columns_with_model(self) -> list:
+        """
+        Extract feature column names from the model and use them as the authoritative source.
+        
+        This ensures features are always in the exact order the model was trained with,
+        avoiding feature_names mismatch errors.
+        
+        Returns:
+            List of feature column names in the order expected by the model
+        """
+        from ..models.xgb_wrapper import get_model_feature_names, get_feature_names_from_model_file
+        
+        # Try to get feature names from the loaded model
+        model_features = get_model_feature_names(self.model)
+        
+        if model_features is not None and len(model_features) > 0:
+            print(f"✓ Using feature order from model ({len(model_features)} features)")
+            return model_features
+        
+        # Try reading directly from the model file
+        if self.model_path:
+            file_features = get_feature_names_from_model_file(self.model_path)
+            if file_features is not None and len(file_features) > 0:
+                print(f"✓ Using feature order from model file ({len(file_features)} features)")
+                return file_features
+        
+        # Fallback to provided feature_columns if model doesn't have feature names
+        if self.feature_columns and len(self.feature_columns) > 0:
+            print("⚠ Model doesn't contain feature names, using provided feature_columns")
+            print(f"  (If you get feature mismatch errors, ensure feature_columns.json matches model)")
+            return self.feature_columns
+        
+        raise ValueError(
+            "Could not determine feature columns.\n"
+            "The model file doesn't contain feature names and no feature_columns.json was provided.\n"
+            "Solutions:\n"
+            "  1. Re-train the model with feature_names in DMatrix\n"
+            "  2. Create data/config/feature_columns.json with the correct feature order\n"
+            "  3. Use 'roster-sim model-features' to check if model has feature names"
+        )
 
     def _load_rider_features(self):
         df = load_dataframe(self.rider_features_path, parse_dates=["date"])
@@ -157,25 +234,79 @@ class RosterOptimizer:
         race_result[parcours_cols] = race_result[parcours_cols].astype(int)
         return race_result
 
-    def get_team_rider_pool(self, team_name, race_context=None, N=18):
+    def get_team_rider_pool(
+        self,
+        team_name,
+        race_context=None,
+        riders_pool: Optional[list] = None,
+        exclude_riders: Optional[list] = None,
+        include_riders: Optional[list] = None,
+        uncertainty_penalty: float = 3.0,
+    ):
+        """
+        Select the rider pool for simulation.
+        
+        Args:
+            team_name: Team to select riders from
+            race_context: Race context with date, cluster, etc.
+            riders_pool: List of 4 integers specifying how many NEW unique riders to select
+                        from each category: [race_cluster_leader, gc_leader, 
+                        race_cluster_teammate, gc_teammate]. Default: [4, 4, 4, 4]
+            exclude_riders: List of rider names to exclude (e.g., riders who left the team)
+            include_riders: List of rider names to include even if not on team roster
+                           (e.g., new signings not yet in the data)
+            uncertainty_penalty: Multiplier for sigma in rating calculation.
+                                rating = mu - k * sigma (default: 3.0)
+                                Higher values penalize uncertain ratings more.
+        """
         if race_context is None:
             raise ValueError("Race context is required")
-        cutoff_date = race_context["date"]
+        
+        # Default riders_pool if not provided
+        if riders_pool is None:
+            riders_pool = [4, 4, 4, 4]
+        
+        if len(riders_pool) != 4:
+            raise ValueError(f"riders_pool must have exactly 4 values, got {len(riders_pool)}")
+        
+        total_pool_size = sum(riders_pool)
+        cutoff_date = race_context["date"] + pd.DateOffset(years=1)
 
         print(f"\n{'='*80}")
         print(f"SELECTING RIDER POOL FOR: {team_name}")
         print(f"{'='*80}")
         print(f"Cutoff date: {cutoff_date}")
-        print(f"Target pool size: {N} riders")
+        print(f"Riders pool distribution: {riders_pool}")
+        print(f"  - race_cluster_leader: {riders_pool[0]}")
+        print(f"  - gc_leader: {riders_pool[1]}")
+        print(f"  - race_cluster_teammate: {riders_pool[2]}")
+        print(f"  - gc_teammate: {riders_pool[3]}")
+        print(f"Target pool size: {total_pool_size} riders")
 
-        rider_left = ["GEE Derek", "RICCITELLO Matthew", "WOODS Michael", "FUGLSANG Jakob", "CLARKE Simon"]
-        print(f"✓ Excluding riders: {rider_left}")
+        # Handle excluded riders (riders who left the team)
+        exclude_riders = exclude_riders or []
+        if exclude_riders:
+            print(f"✓ Excluding riders: {exclude_riders}")
 
+        # Get riders from team roster for the year, excluding specified riders
         possible_riders = self.rider_features[
             (self.rider_features["team"] == team_name) &
             (self.rider_features["year"] == self.year) &
-            (~self.rider_features["rider"].isin(rider_left))
-        ]["rider"].unique()
+            (~self.rider_features["rider"].isin(exclude_riders))
+        ]["rider"].unique().tolist()
+
+        # Handle included riders (new signings or riders to add)
+        include_riders = include_riders or []
+        if include_riders:
+            # Add included riders if they exist in the data (from any team)
+            for rider in include_riders:
+                if rider not in possible_riders:
+                    # Check if rider exists in the dataset
+                    if rider in self.rider_features["rider"].values:
+                        possible_riders.append(rider)
+                        print(f"✓ Including rider: {rider}")
+                    else:
+                        print(f"⚠ Cannot include rider '{rider}' - not found in dataset")
 
         print(f"✓ {len(possible_riders)} possible riders found for {team_name} in {self.year}")
 
@@ -195,30 +326,52 @@ class RosterOptimizer:
         latest_ratings = team_ratings.groupby("rider").first().reset_index()
 
         print(f"✓ {len(latest_ratings)} unique riders found")
+        print(f"Using uncertainty penalty k={uncertainty_penalty} (rating = mu - k*sigma)")
 
-        n_per_category = N // 3
+        # Categories: (mu_column, sigma_column, target_count)
+        categories = [
+            ("race_cluster_leader_mu", "race_cluster_leader_sigma", riders_pool[0]),
+            ("gc_leader_mu", "gc_leader_sigma", riders_pool[1]),
+            ("race_cluster_teammate_mu", "race_cluster_teammate_sigma", riders_pool[2]),
+            ("gc_teammate_mu", "gc_teammate_sigma", riders_pool[3]),
+        ]
+        
         selected_riders = set()
-
-        if "race_cluster_leader_mu" in latest_ratings.columns:
-            top_leader = latest_ratings.nlargest(n_per_category, "race_cluster_leader_mu")
-            selected_riders.update(top_leader["rider"].tolist())
-            print(f"✓ Selected {len(top_leader)} riders by race_cluster_leader_mu")
-
-        if "gc_leader_mu" in latest_ratings.columns:
-            top_gc = latest_ratings.nlargest(n_per_category, "gc_leader_mu")
-            selected_riders.update(top_gc["rider"].tolist())
-            print(f"✓ Selected {len(selected_riders)} riders (added gc_leader_mu)")
-
-        if "race_cluster_teammate_mu" in latest_ratings.columns:
-            top_teammate = latest_ratings.nlargest(n_per_category, "race_cluster_teammate_mu")
-            selected_riders.update(top_teammate["rider"].tolist())
-            print(f"✓ Selected {len(selected_riders)} riders (added teammate_mu)")
-
-        if len(selected_riders) < N and "gc_teammate_mu" in latest_ratings.columns:
-            remaining_riders = latest_ratings[~latest_ratings["rider"].isin(selected_riders)]
-            additional = remaining_riders.nlargest(N - len(selected_riders), "gc_teammate_mu")
-            selected_riders.update(additional["rider"].tolist())
-            print(f"✓ Added {len(additional)} additional riders to reach {N}")
+        
+        for mu_col, sigma_col, target_count in categories:
+            if target_count == 0:
+                continue
+                
+            if mu_col not in latest_ratings.columns:
+                print(f"⚠ Column '{mu_col}' not found, skipping")
+                continue
+            
+            # Calculate conservative rating = mu - k * sigma
+            if sigma_col in latest_ratings.columns:
+                latest_ratings[f"_rating_{mu_col}"] = (
+                    latest_ratings[mu_col] - uncertainty_penalty * latest_ratings[sigma_col]
+                )
+                sort_col = f"_rating_{mu_col}"
+                rating_info = f"(mu - {uncertainty_penalty}*sigma)"
+            else:
+                # Fallback to mu only if sigma not available
+                sort_col = mu_col
+                rating_info = "(mu only, sigma not found)"
+                print(f"⚠ Column '{sigma_col}' not found, using mu only")
+            
+            # Select riders until we've added target_count NEW unique riders
+            added_count = 0
+            sorted_by_rating = latest_ratings.sort_values(sort_col, ascending=False)
+            
+            for _, row in sorted_by_rating.iterrows():
+                rider = row["rider"]
+                if rider not in selected_riders:
+                    selected_riders.add(rider)
+                    added_count += 1
+                    if added_count >= target_count:
+                        break
+            
+            print(f"✓ Added {added_count} riders from {mu_col} {rating_info} (pool size: {len(selected_riders)})")
 
         rider_pool = latest_ratings[latest_ratings["rider"].isin(selected_riders)].copy()
         print(f"\n✓ Final rider pool: {len(rider_pool)} riders")
@@ -319,12 +472,13 @@ class RosterOptimizer:
             suffixes=("", "_rating"),
         )
 
-        print(f"✓ Reference race loaded: {len(reference_race_complete)} competitors with features and ratings")
+        # print(f"✓ Reference race loaded: {len(reference_race_complete)} competitors with features and ratings")
 
         simulated_race = reference_race_complete[reference_race_complete["team"] != team_name].copy()
 
         roster_data = []
         for rider in roster_riders:
+            # Use the most up to date skills and features
             rider_features = self.rider_features[
                 (self.rider_features["rider"] == rider) &
                 (self.rider_features["cluster"] == reference_cluster)
@@ -358,8 +512,8 @@ class RosterOptimizer:
         roster_df = pd.DataFrame(roster_data)
         simulated_race = pd.concat([simulated_race, roster_df], ignore_index=True)
 
-        print(f"✓ Test roster added: {len(roster_df)} riders")
-        print(f"✓ Total competitors: {len(simulated_race)} riders")
+        # print(f"✓ Test roster added: {len(roster_df)} riders")
+        # print(f"✓ Total competitors: {len(simulated_race)} riders")
 
         simulated_race = reconstruct_team_roster_features(simulated_race, team_name)
         simulated_race = self.extract_race_features(simulated_race)
@@ -410,44 +564,64 @@ class RosterOptimizer:
             "total_competitors": len(simulated_race),
         }
 
-    def _update_top_combinations(self, new_result, top_combinations, max_unique=10):
-        top_combinations.append(new_result)
-        top_combinations.sort(key=lambda x: (x["best_rank"], -x["top_10_count"]))
-        seen_performances = set()
-        filtered_combinations = []
+    def _sanitize_filename(self, name: str) -> str:
+        """
+        Sanitize a string for use in filenames.
+        Removes/replaces Windows-invalid characters: \\ / : * ? " < > |
+        """
+        sanitized = name.replace(" ", "_").replace("|", "-").replace(":", "-")
+        sanitized = sanitized.replace("\\", "-").replace("/", "-").replace("*", "")
+        sanitized = sanitized.replace("?", "").replace('"', "").replace("<", "").replace(">", "")
+        sanitized = sanitized.replace("–", "-")  # en-dash
+        return sanitized
 
-        for combo in top_combinations:
-            perf_key = (combo["best_rank"], combo["top_10_count"])
-            if len(seen_performances) < max_unique or perf_key in seen_performances:
-                filtered_combinations.append(combo)
-                seen_performances.add(perf_key)
+    def _save_combinations_csv(
+        self, 
+        combinations, 
+        save_path, 
+        team_name, 
+        race_name, 
+        race_cluster,
+        last_saved_index: int = 0,
+        custom_filename: Optional[str] = None,
+        sort_by: Optional[str] = None
+    ):
+        """
+        Save combinations to CSV file.
+        
+        Args:
+            combinations: List of all combinations evaluated so far
+            save_path: Directory to save to
+            team_name: Team name for filename
+            race_name: Race name for filename
+            race_cluster: Race cluster for filename
+            last_saved_index: Index of last saved combination (append from here)
+            custom_filename: If provided, use this filename and save all (no append)
+            sort_by: If provided, sort DataFrame by this column before saving
+            
+        Returns:
+            Tuple of (filename, new_last_saved_index)
+        """
+        if len(combinations) == 0:
+            return None, 0
 
-        was_added = new_result in filtered_combinations
-        return filtered_combinations, was_added
-
-    def _should_consider_combination(self, new_result, top_combinations, max_unique=10):
-        if len(top_combinations) == 0:
-            return True
-        seen_performances = {(combo["best_rank"], combo["top_10_count"]) for combo in top_combinations}
-        if len(seen_performances) < max_unique:
-            return True
-
-        worst_combo = max(top_combinations, key=lambda x: (x["best_rank"], -x["top_10_count"]))
-        new_perf = (new_result["best_rank"], new_result["top_10_count"])
-        worst_perf = (worst_combo["best_rank"], worst_combo["top_10_count"])
-
-        if new_perf[0] < worst_perf[0]:
-            return True
-        if new_perf[0] == worst_perf[0] and new_perf[1] >= worst_perf[1]:
-            return True
-        return False
-
-    def _save_top_combinations_csv(self, top_combinations, save_path, team_name, race_name, race_cluster):
-        if len(top_combinations) == 0:
-            return
+        # If custom filename provided, save ALL combinations (no incremental append)
+        if custom_filename:
+            combos_to_save = combinations
+            append_mode = False
+        else:
+            # Only process new combinations since last save
+            combos_to_save = combinations[last_saved_index:]
+            append_mode = True
+            
+        if len(combos_to_save) == 0:
+            team_safe = self._sanitize_filename(team_name)
+            race_base_name = self._sanitize_filename(race_name.split(" | ")[0])
+            filename = f"{save_path}/{team_safe}_{race_base_name}_{race_cluster}_progress.csv"
+            return filename, last_saved_index
 
         save_data = []
-        for combo in top_combinations:
+        for combo in combos_to_save:
             row = {
                 "combo_id": combo["combo_id"],
                 "best_rank": combo["best_rank"],
@@ -483,53 +657,79 @@ class RosterOptimizer:
 
         rider_cols_sorted = sorted(rider_cols, key=sort_key)
         df = df[base_cols + rider_cols_sorted]
+        
+        # Sort if requested
+        if sort_by and sort_by in df.columns:
+            df = df.sort_values(sort_by, ascending=True)
 
-        team_safe = team_name.replace(" ", "_").replace("–", "-")
-        race_base_name = race_name.split(" | ")[0]
-        filename = f"{save_path}/{team_safe}_{race_base_name}_{race_cluster}_top10_progress.csv"
+        # Determine filename
+        if custom_filename:
+            filename = custom_filename
+        else:
+            team_safe = self._sanitize_filename(team_name)
+            race_base_name = self._sanitize_filename(race_name.split(" | ")[0])
+            filename = f"{save_path}/{team_safe}_{race_base_name}_{race_cluster}_progress.csv"
 
         os.makedirs(save_path, exist_ok=True)
-        df.to_csv(filename, index=False)
-
-        metadata_file = f"{save_path}/{team_safe}_{race_base_name}_{race_cluster}_README.txt"
-        with open(metadata_file, "w") as f:
-            f.write("ROSTER SIMULATION RESULTS - COLUMN DESCRIPTIONS\n")
-            f.write("=" * 60 + "\n\n")
-            f.write("Base Columns:\n")
-            f.write("  combo_id: Combination identifier number\n")
-            f.write("  best_rank: Best finishing position achieved by any team rider\n")
-            f.write("  best_rider: Name of the rider who achieved best_rank\n")
-            f.write("  mean_rank: Average finishing position across roster\n")
-            f.write("  top_5_count: Number of team riders finishing in top 5\n")
-            f.write("  top_10_count: Number of team riders finishing in top 10\n")
-            f.write("  top_30_count: Number of team riders finishing in top 30\n")
-            f.write("  total_competitors: Total number of riders in the race\n\n")
-            f.write("Rider Details (sorted by performance, best to worst):\n")
-            f.write("  rider_N: Name of Nth best performing team rider\n")
-            f.write("  race_rank_N: Predicted finishing position among ALL competitors\n")
-            f.write("  score_N: Model prediction score for this rider\n\n")
-            f.write("Note: Riders are sorted within each roster by their race_rank\n")
-
-        return filename
+        
+        # Custom filename: always overwrite; otherwise: append mode
+        if custom_filename:
+            df.to_csv(filename, index=False)
+        else:
+            file_exists = os.path.exists(filename) and last_saved_index > 0
+            df.to_csv(filename, mode='a' if file_exists else 'w', header=not file_exists, index=False)
+        
+        return filename, len(combinations)
 
     def simulate_best_rosters(
         self,
         team_name,
         race_name,
         race_context=None,
-        N=18,
+        riders_pool: Optional[list] = None,
         n_riders_per_roster=8,
-        save_path="results/roster_sims/",
-        cutoff_date=None,
-        top_k=10,
+        save_path="results/simulation_results/",
+        exclude_riders: Optional[list] = None,
+        include_riders: Optional[list] = None,
+        uncertainty_penalty: float = 3.0,
     ):
+        """
+        Simulate all roster combinations and save results.
+        
+        Args:
+            team_name: Team to optimize
+            race_name: Target race
+            race_context: Race context (cluster, classification, date, etc.)
+            riders_pool: List of 4 integers specifying riders per category:
+                        [race_cluster_leader, gc_leader, race_cluster_teammate, gc_teammate]
+                        Default: [4, 4, 4, 4] = 16 riders total
+            n_riders_per_roster: Number of riders per roster
+            save_path: Directory to save results
+            exclude_riders: List of rider names to exclude (e.g., riders who left)
+            include_riders: List of rider names to include (e.g., new signings)
+            uncertainty_penalty: Multiplier k for rating = mu - k*sigma (default: 3.0)
+            
+        Returns:
+            DataFrame with top results sorted by best_rank
+        """
+        # Default riders_pool if not provided
+        if riders_pool is None:
+            riders_pool = [4, 4, 4, 4]
+            
+        total_pool_size = sum(riders_pool)
+        
         print(f"\n{'='*80}")
         print(f"SIMULATING BEST ROSTERS")
         print(f"{'='*80}")
         print(f"Team: {team_name}")
         print(f"Race: {race_name}")
         print(f"Roster size: {n_riders_per_roster}")
-        print(f"Search space: {N} riders")
+        print(f"Search space: {total_pool_size} riders (pool: {riders_pool})")
+        print(f"Uncertainty penalty: k={uncertainty_penalty}")
+        if exclude_riders:
+            print(f"Excluding: {exclude_riders}")
+        if include_riders:
+            print(f"Including: {include_riders}")
 
         if self.model is None:
             raise ValueError("No model loaded. Provide model_path during initialization.")
@@ -548,7 +748,14 @@ class RosterOptimizer:
         if isinstance(race_context["date"], str):
             race_context["date"] = pd.to_datetime(race_context["date"])
 
-        rider_pool = self.get_team_rider_pool(team_name, race_context=race_context, N=N)
+        rider_pool = self.get_team_rider_pool(
+            team_name,
+            race_context=race_context,
+            riders_pool=riders_pool,
+            exclude_riders=exclude_riders,
+            include_riders=include_riders,
+            uncertainty_penalty=uncertainty_penalty,
+        )
         roster_combos = self.generate_roster_combinations(rider_pool, n_riders_per_roster)
 
         print(f"\n{'='*80}")
@@ -573,8 +780,9 @@ class RosterOptimizer:
         print(f"{'='*80}")
 
         results = []
-        top_combinations = []
-        save_interval = 1
+        save_interval = 100  # Save every 100 combinations
+        best_so_far = None
+        last_saved_index = 0  # Track what's already been saved
 
         for i, roster_riders in enumerate(tqdm(roster_combos, desc="Evaluating rosters")):
             performance = self.predict_roster_performance(
@@ -590,27 +798,23 @@ class RosterOptimizer:
                 performance["race"] = race_name
                 results.append(performance)
 
-                if self._should_consider_combination(performance, top_combinations, max_unique=10):
-                    prev_best = top_combinations[0] if len(top_combinations) > 0 else None
-                    top_combinations, was_added = self._update_top_combinations(
-                        performance, top_combinations, max_unique=10
+                # Track and report new best performance
+                if best_so_far is None or (
+                    performance["best_rank"] < best_so_far["best_rank"]
+                    or (performance["best_rank"] == best_so_far["best_rank"]
+                        and performance["top_10_count"] > best_so_far["top_10_count"])
+                ):
+                    best_so_far = performance
+                    tqdm.write(
+                        f"  🎯 New best! Rank {performance['best_rank']} | Top-10: {performance['top_10_count']} (combo #{i})"
                     )
-                    if was_added and len(top_combinations) > 0:
-                        new_best = top_combinations[0]
-                        if prev_best is None or (
-                            new_best["best_rank"] < prev_best["best_rank"]
-                            or (new_best["best_rank"] == prev_best["best_rank"]
-                                and new_best["top_10_count"] > prev_best["top_10_count"])
-                        ):
-                            tqdm.write(
-                                f"  🎯 New best! Rank {new_best['best_rank']} | Top-10: {new_best['top_10_count']} (combo #{i})"
-                            )
 
-                    if was_added and (i + 1) % save_interval == 0:
-                        saved_file = self._save_top_combinations_csv(
-                            top_combinations, save_path, team_name, race_name, reference_cluster
-                        )
-                        tqdm.write(f"  💾 Progress saved: {len(top_combinations)} top combinations to {saved_file}")
+                # Save progress periodically (append only new rows)
+                if (i + 1) % save_interval == 0:
+                    saved_file, last_saved_index = self._save_combinations_csv(
+                        results, save_path, team_name, race_name, reference_cluster, last_saved_index
+                    )
+                    tqdm.write(f"  💾 Progress saved: {len(results)} combinations (+{save_interval} new) to {saved_file}")
 
         if len(results) == 0:
             print("❌ No valid roster combinations could be evaluated")
@@ -618,28 +822,39 @@ class RosterOptimizer:
 
         print(f"\n✓ Successfully evaluated {len(results):,} roster combinations")
 
-        progress_file = self._save_top_combinations_csv(top_combinations, save_path, team_name, race_name, reference_cluster)
-        print(f"✓ Top {len(top_combinations)} combinations saved to: {progress_file}")
+        # Final save - append any remaining combinations not yet saved
+        remaining = len(results) - last_saved_index
+        progress_file, _ = self._save_combinations_csv(
+            results, save_path, team_name, race_name, reference_cluster, last_saved_index
+        )
+        if remaining > 0:
+            print(f"✓ Final {remaining} combinations appended to: {progress_file}")
+        print(f"✓ All {len(results)} combinations saved to: {progress_file}")
 
-        results_df = pd.DataFrame(results)
-        results_df = results_df.sort_values("best_rank", ascending=True)
-        top_rosters = results_df.head(top_k).copy()
-
-        os.makedirs(save_path, exist_ok=True)
+        # Save final sorted results (reuse the same save method with custom filename)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        team_safe = team_name.replace(" ", "_").replace("–", "-")
-        race_safe = race_name.replace(" ", "_")
+        team_safe = self._sanitize_filename(team_name)
+        race_safe = self._sanitize_filename(race_name)
+        all_results_file = f"{save_path}/{team_safe}_{race_safe}_{timestamp}_sorted.csv"
+        
+        self._save_combinations_csv(
+            results, save_path, team_name, race_name, reference_cluster,
+            custom_filename=all_results_file,
+            sort_by="best_rank"
+        )
 
-        output_file = f"{save_path}/{team_safe}_{race_safe}_{timestamp}_top{top_k}.csv"
-        top_rosters.to_csv(output_file, index=False)
-
-        all_results_file = f"{save_path}/{team_safe}_{race_safe}_{timestamp}_all.csv"
-        results_df.to_csv(all_results_file, index=False)
+        # Delete the progress file now that we have the final sorted version
+        if progress_file and os.path.exists(progress_file):
+            try:
+                os.remove(progress_file)
+                print(f"✓ Progress file deleted: {progress_file}")
+            except OSError as e:
+                print(f"⚠ Could not delete progress file: {e}")
 
         print(f"\n{'='*80}")
         print(f"SIMULATION COMPLETE")
         print(f"{'='*80}")
-        print(f"✓ Top {top_k} rosters saved to: {output_file}")
-        print(f"✓ All results saved to: {all_results_file}")
+        print(f"✓ Final results saved to: {all_results_file}")
 
-        return top_rosters
+        # Return the sorted results as DataFrame
+        return pd.read_csv(all_results_file)

@@ -1,0 +1,149 @@
+{
+  "Giro d'Italia | Stage 1": {
+    "cluster": "Hills, flat finish",
+    "classification": "2.UWT",
+    "typical_date": "05-09",
+    "distance": 160.0,
+    "verticalMeters": 1876.0
+  },
+  "Tour de France": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "07-01",
+    "distance": 180.0,
+    "verticalMeters": 3800.0
+  },
+  "Vuelta a España": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "08-20",
+    "distance": 175.0,
+    "verticalMeters": 3200.0
+  },
+  "Milano-Sanremo": {
+    "cluster": "Hills, flat finish",
+    "classification": "WT",
+    "typical_date": "03-18",
+    "distance": 294.0,
+    "verticalMeters": 1500.0
+  },
+  "Ronde van Vlaanderen": {
+    "cluster": "Hills, flat finish",
+    "classification": "WT",
+    "typical_date": "04-02",
+    "distance": 273.0,
+    "verticalMeters": 2800.0
+  },
+  "Paris-Roubaix": {
+    "cluster": "Flat",
+    "classification": "WT",
+    "typical_date": "04-09",
+    "distance": 257.0,
+    "verticalMeters": 500.0
+  },
+  "Liège-Bastogne-Liège": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "04-23",
+    "distance": 258.0,
+    "verticalMeters": 4200.0
+  },
+  "Il Lombardia": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "10-07",
+    "distance": 245.0,
+    "verticalMeters": 3800.0
+  },
+  "E3 Saxo Classic": {
+    "cluster": "Hills, flat finish",
+    "classification": "WT",
+    "typical_date": "03-24",
+    "distance": 204.0,
+    "verticalMeters": 2100.0
+  },
+  "Strade Bianche": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "03-04",
+    "distance": 184.0,
+    "verticalMeters": 2600.0
+  },
+  "Amstel Gold Race": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "04-16",
+    "distance": 254.0,
+    "verticalMeters": 3500.0
+  },
+  "La Flèche Wallonne": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "04-19",
+    "distance": 195.0,
+    "verticalMeters": 3400.0
+  },
+  "Tirreno-Adriatico": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "03-10",
+    "distance": 170.0,
+    "verticalMeters": 2500.0
+  },
+  "Paris-Nice": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "03-05",
+    "distance": 165.0,
+    "verticalMeters": 2800.0
+  },
+  "Volta Ciclista a Catalunya": {
+    "cluster": "Mountains, uphill finish",
+    "classification": "WT",
+    "typical_date": "03-20",
+    "distance": 170.0,
+    "verticalMeters": 3200.0
+  },
+  "Tour de Suisse": {
+    "cluster": "Mountains, uphill finish",
+    "classification": "WT",
+    "typical_date": "06-11",
+    "distance": 160.0,
+    "verticalMeters": 3500.0
+  },
+  "Critérium du Dauphiné": {
+    "cluster": "Mountains, uphill finish",
+    "classification": "WT",
+    "typical_date": "06-04",
+    "distance": 160.0,
+    "verticalMeters": 3300.0
+  },
+  "Gent-Wevelgem": {
+    "cluster": "Flat",
+    "classification": "WT",
+    "typical_date": "03-26",
+    "distance": 249.0,
+    "verticalMeters": 800.0
+  },
+  "San Sebastian": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "07-29",
+    "distance": 227.0,
+    "verticalMeters": 3800.0
+  },
+  "World Championships - Road Race": {
+    "cluster": "Hills, uphill finish",
+    "classification": "WT",
+    "typical_date": "09-24",
+    "distance": 270.0,
+    "verticalMeters": 4500.0
+  },
+  "World Championships - Time Trial": {
+    "cluster": "Time Trial",
+    "classification": "WT",
+    "typical_date": "09-17",
+    "distance": 45.0,
+    "verticalMeters": 300.0
+  }
+}
