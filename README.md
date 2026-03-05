@@ -1,6 +1,8 @@
 # Roster Advisor
 
-**A recommendation engine for data-driven roster optimization in professional road cycling.**
+**This package provides a practical simulation engine that leverages the VeloRost-Ex ranking model to generate actionable roster recommendations for upcoming race seasons.** 
+
+VeloRost-Ex Repo: https://github.com/denisrize/VeloRost-Ex
 
 ## About
 
