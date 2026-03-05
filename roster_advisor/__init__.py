@@ -15,11 +15,11 @@ Simple Usage:
     >>> results = optimizer.simulate_best_rosters(...)
 
 Or use the CLI:
-    $ roster-advisor run --team "Israel - Premier Tech" --race "Giro d'Italia" --scheme time_lag
+    $ python main.py run --team "Israel - Premier Tech" --race "Giro d'Italia" --scheme time_lag
 """
 
-from .engine.optimizer import RosterOptimizer
-from .utils.config import (
+from roster_advisor.engine.optimizer import RosterOptimizer
+from roster_advisor.utils.config import (
     create_config,
     UserConfig,
     ConfigBuilder,
@@ -29,7 +29,7 @@ from .utils.config import (
     get_race_info,
     check_system_status,
 )
-from .utils.data_registry import (
+from roster_advisor.utils.data_registry import (
     DataRegistry,
     get_registry,
     RaceNotFoundError,

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
-from .data_registry import (
+from roster_advisor.utils.data_registry import (
     DataRegistry,
     get_registry,
     RaceNotFoundError,
@@ -20,7 +20,7 @@ from .data_registry import (
     SchemeNotFoundError,
     DataNotFoundError,
 )
-from .types import RaceContext, SimulationConfig, SimulationPaths, SimulationRunConfig
+from roster_advisor.utils.types import RaceContext, SimulationConfig, SimulationPaths, SimulationRunConfig
 
 
 @dataclass

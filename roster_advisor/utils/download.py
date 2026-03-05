@@ -197,7 +197,7 @@ def print_data_status() -> None:
         print(f"Missing {status['missing_count']} file(s).")
         print()
         print("To download missing files, run:")
-        print("  roster-advisor download-data")
+        print("  python main.py download-data")
         print()
         print("Or download manually from Zenodo:")
         print(f"  https://zenodo.org/records/{ZENODO_RECORD_ID}")

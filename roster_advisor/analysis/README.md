@@ -14,7 +14,7 @@ After running a roster simulation that evaluates all possible roster combination
 
 **Command:**
 ```bash
-roster-advisor recommend --csv <simulation.csv> --output <output.csv>
+python main.py recommend --csv <simulation.csv> --output <output.csv>
 ```
 
 ### Logic
@@ -83,7 +83,7 @@ STRONG Corbin    | Rnk(1,5) | 20 occurrences  | Helpers: VAN TRICHT (100%), BLAC
 
 **Command:**
 ```bash
-roster-advisor recommend --csv <simulation.csv> --output <output.csv> --individual
+python main.py recommend --csv <simulation.csv> --output <output.csv> --individual
 ```
 
 ### Logic
@@ -149,13 +149,13 @@ BLACKMORE Joseph | Best: 18 | Rnk(16,20) | 10/330 (3.0%) | Helpers: BOIVIN (100%
 ### Scenario 1: Roster Construction
 Use **team-based analysis** (default) to identify your primary leader candidates and their optimal supporting cast.
 ```bash
-roster-advisor recommend --csv results/simulation.csv --output team_recommendations.csv
+python main.py recommend --csv results/simulation.csv --output team_recommendations.csv
 ```
 
 ### Scenario 2: Rider Evaluation
 Use **individual analysis** (`--individual`) to understand each rider's potential ceiling and which teammates help them perform best.
 ```bash
-roster-advisor recommend --csv results/simulation.csv --output individual.csv --individual
+python main.py recommend --csv results/simulation.csv --output individual.csv --individual
 ```
 
 ### Scenario 3: Combined Strategy
@@ -165,8 +165,8 @@ roster-advisor recommend --csv results/simulation.csv --output individual.csv --
 
 ```bash
 # Both analyses on same simulation
-roster-advisor recommend --csv results/simulation.csv --output team.csv
-roster-advisor recommend --csv results/simulation.csv --output individual.csv --individual
+python main.py recommend --csv results/simulation.csv --output team.csv
+python main.py recommend --csv results/simulation.csv --output individual.csv --individual
 ```
 
 ---

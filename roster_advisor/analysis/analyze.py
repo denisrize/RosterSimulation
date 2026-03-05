@@ -173,7 +173,7 @@ def save_recommendations(
 # Main Analysis Functions
 # =============================================================================
 
-def analyze_single_file(csv_file: str, output_file: Optional[str], top_leaders: Optional[int] = None):
+def analyze_single_file(csv_file: str, output_file: Optional[str], top_ranks: Optional[int] = None):
     """Analyze simulation results based on team's best rider (emergent leader).
     
     This function identifies leaders based on who achieved the best rank in each
@@ -183,7 +183,7 @@ def analyze_single_file(csv_file: str, output_file: Optional[str], top_leaders: 
     Args:
         csv_file: Path to simulation results CSV
         output_file: Output path for recommendations (.json or .csv)
-        top_leaders: Limit number of leader entries (None = all)
+        top_ranks: Limit number of ranks achieved by riders in the rider pool (None = all)
         
     Returns:
         Dict containing metadata, leaders, and helpers recommendations
@@ -282,10 +282,10 @@ def analyze_single_file(csv_file: str, output_file: Optional[str], top_leaders: 
     leader_entries.sort(key=lambda x: (parse_rank_group_start(x["rank_group"]), -x["occurrences_in_group"]))
     
     # Limit leaders if specified
-    if top_leaders is None:
+    if top_ranks is None:
         top_leaders_list = leader_entries
     else:
-        top_leaders_list = leader_entries[:top_leaders]
+        top_leaders_list = leader_entries[:top_ranks]
 
     recommendations = {
         "metadata": {

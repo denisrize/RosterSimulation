@@ -4,7 +4,7 @@ Utility modules for Roster Advisor.
 Contains configuration, data registry, and type definitions.
 """
 
-from .config import (
+from roster_advisor.utils.config import (
     UserConfig,
     ConfigBuilder,
     ConfigurationError,
@@ -15,7 +15,7 @@ from .config import (
     get_race_info,
     check_system_status,
 )
-from .data_registry import (
+from roster_advisor.utils.data_registry import (
     DataRegistry,
     get_registry,
     RaceNotFoundError,
@@ -23,13 +23,13 @@ from .data_registry import (
     SchemeNotFoundError,
     DataNotFoundError,
 )
-from .types import (
+from roster_advisor.utils.types import (
     RaceContext,
     SimulationConfig,
     SimulationPaths,
     SimulationRunConfig,
 )
-from .download import (
+from roster_advisor.utils.download import (
     download_data,
     check_data_status,
     print_data_status,

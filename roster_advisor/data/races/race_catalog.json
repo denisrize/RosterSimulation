@@ -6,12 +6,12 @@
     "distance": 160.0,
     "verticalMeters": 1876.0
   },
-  "Tour de France": {
-    "cluster": "Hills, uphill finish",
-    "classification": "WT",
-    "typical_date": "07-01",
-    "distance": 180.0,
-    "verticalMeters": 3800.0
+  "Milano-Sanremo": {
+    "cluster": "Hills, flat finish",
+    "classification": "1.UWT",
+    "typical_date": "03-22",
+    "distance": 289.0,
+    "verticalMeters": 2217.0
   },
   "Vuelta a España": {
     "cluster": "Hills, uphill finish",
@@ -20,19 +20,12 @@
     "distance": 175.0,
     "verticalMeters": 3200.0
   },
-  "Milano-Sanremo": {
+  "E3 Saxo Classic": {
     "cluster": "Hills, flat finish",
     "classification": "WT",
-    "typical_date": "03-18",
-    "distance": 294.0,
-    "verticalMeters": 1500.0
-  },
-  "Ronde van Vlaanderen": {
-    "cluster": "Hills, flat finish",
-    "classification": "WT",
-    "typical_date": "04-02",
-    "distance": 273.0,
-    "verticalMeters": 2800.0
+    "typical_date": "03-28",
+    "distance": 208.8,
+    "verticalMeters": 1951.0
   },
   "Paris-Roubaix": {
     "cluster": "Flat",
@@ -54,13 +47,6 @@
     "typical_date": "10-07",
     "distance": 245.0,
     "verticalMeters": 3800.0
-  },
-  "E3 Saxo Classic": {
-    "cluster": "Hills, flat finish",
-    "classification": "WT",
-    "typical_date": "03-24",
-    "distance": 204.0,
-    "verticalMeters": 2100.0
   },
   "Strade Bianche": {
     "cluster": "Hills, uphill finish",
@@ -131,19 +117,5 @@
     "typical_date": "07-29",
     "distance": 227.0,
     "verticalMeters": 3800.0
-  },
-  "World Championships - Road Race": {
-    "cluster": "Hills, uphill finish",
-    "classification": "WT",
-    "typical_date": "09-24",
-    "distance": 270.0,
-    "verticalMeters": 4500.0
-  },
-  "World Championships - Time Trial": {
-    "cluster": "Time Trial",
-    "classification": "WT",
-    "typical_date": "09-17",
-    "distance": 45.0,
-    "verticalMeters": 300.0
   }
 }

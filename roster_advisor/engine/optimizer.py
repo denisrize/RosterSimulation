@@ -18,13 +18,13 @@ import pandas as pd
 import xgboost as xgb
 from tqdm import tqdm
 
-from ..io.loaders import load_dataframe, load_feature_columns, load_model
-from ..models.xgb_wrapper import predict_scores
-from .features import add_roster_aggregations, reconstruct_team_roster_features
-from .reference_race import load_reference_races, select_reference_race
+from roster_advisor.io.loaders import load_dataframe, load_feature_columns, load_model
+from roster_advisor.models.xgb_wrapper import predict_scores
+from roster_advisor.engine.features import reconstruct_team_roster_features
+from roster_advisor.engine.reference_race import load_reference_races, select_reference_race
 
 if TYPE_CHECKING:
-    from ..utils.types import SimulationConfig
+    from roster_advisor.utils.types import SimulationConfig
 
 
 class RosterOptimizer:
@@ -56,7 +56,7 @@ class RosterOptimizer:
             ... )
             >>> optimizer = RosterOptimizer.from_config(config)
         """
-        from ..io.loaders import load_feature_columns
+        from roster_advisor.io.loaders import load_feature_columns
         
         # Try to load feature columns, but they're optional since we can get them from the model
         feature_columns = None
@@ -149,7 +149,7 @@ class RosterOptimizer:
         Returns:
             List of feature column names in the order expected by the model
         """
-        from ..models.xgb_wrapper import get_model_feature_names, get_feature_names_from_model_file
+        from roster_advisor.models.xgb_wrapper import get_model_feature_names, get_feature_names_from_model_file
         
         # Try to get feature names from the loaded model
         model_features = get_model_feature_names(self.model)
@@ -402,51 +402,6 @@ class RosterOptimizer:
         print(f"✓ Generated {len(roster_combos):,} roster combinations")
         return roster_combos
 
-    def construct_roster_features(self, roster_riders, race_context):
-        race_date = race_context.get("date")
-        race_cluster = race_context.get("cluster")
-        race_class_val = race_context.get("classification")
-
-        roster_features = []
-        for rider in roster_riders:
-            rider_data = self.rider_features[
-                (self.rider_features["rider"] == rider) &
-                (self.rider_features["date"] <= race_date)
-            ]
-            if len(rider_data) == 0:
-                rider_data = self.rider_features[self.rider_features["rider"] == rider]
-            if len(rider_data) == 0:
-                continue
-
-            rider_record = rider_data.sort_values("date", ascending=False).iloc[0].copy()
-
-            rider_ratings = self.trueskill_ratings[
-                (self.trueskill_ratings["rider"] == rider) &
-                (self.trueskill_ratings["date"] <= race_date)
-            ]
-            if len(rider_ratings) > 0:
-                latest_rating = rider_ratings.sort_values("date", ascending=False).iloc[0]
-                for col in (self.leader_feature_columns or []) + (self.teammate_feature_columns or []):
-                    if col in latest_rating:
-                        rider_record[col] = latest_rating[col]
-
-            roster_features.append(rider_record)
-
-        if len(roster_features) == 0:
-            return None
-
-        roster_df = pd.DataFrame(roster_features)
-        roster_df = add_roster_aggregations(roster_df, roster_riders)
-
-        roster_df["cluster"] = race_cluster
-        roster_df["classification"] = race_class_val
-        roster_df["date"] = race_date
-
-        for cluster in self.clusters or []:
-            roster_df[f"cluster_{cluster}"] = (roster_df["cluster"] == cluster).astype(int)
-
-        return roster_df
-
     def predict_roster_performance(self, roster_riders, reference_race_name, reference_race_date, reference_cluster, team_name):
         reference_race_features = self.rider_features[
             (self.rider_features["race"] == reference_race_name) &
@@ -472,8 +427,7 @@ class RosterOptimizer:
             suffixes=("", "_rating"),
         )
 
-        # print(f"✓ Reference race loaded: {len(reference_race_complete)} competitors with features and ratings")
-
+        # We want to remove the team's riders from the reference race to add it manually for the selected combination riders
         simulated_race = reference_race_complete[reference_race_complete["team"] != team_name].copy()
 
         roster_data = []
@@ -511,9 +465,6 @@ class RosterOptimizer:
 
         roster_df = pd.DataFrame(roster_data)
         simulated_race = pd.concat([simulated_race, roster_df], ignore_index=True)
-
-        # print(f"✓ Test roster added: {len(roster_df)} riders")
-        # print(f"✓ Total competitors: {len(simulated_race)} riders")
 
         simulated_race = reconstruct_team_roster_features(simulated_race, team_name)
         simulated_race = self.extract_race_features(simulated_race)

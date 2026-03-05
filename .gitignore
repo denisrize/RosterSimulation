@@ -163,11 +163,10 @@ Desktop.ini
 *.bak
 
 # Package-specific: exclude test data or example outputs if needed
-# test_outputs/
-# example_outputs/
+results/
 
 # =============================================================================
-# Large Data Files (hosted externally - download via `roster-advisor download-data`)
+# Large Data Files (hosted externally - download via `python main.py download-data`)
 # =============================================================================
 # These files exceed GitHub's 100MB limit and are hosted on Zenodo
 # Download URL: https://zenodo.org/records/18493146

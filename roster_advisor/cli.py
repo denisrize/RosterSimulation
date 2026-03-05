@@ -4,10 +4,10 @@ import argparse
 import sys
 from dataclasses import asdict
 
-from .io.loaders import load_feature_columns
-from .analysis.analyze import analyze_single_file, analyze_individual_leaders
-from .engine.optimizer import RosterOptimizer
-from .utils.download import download_data, print_data_status, check_data_status
+from roster_advisor.io.loaders import load_feature_columns
+from roster_advisor.analysis.analyze import analyze_single_file, analyze_individual_leaders
+from roster_advisor.engine.optimizer import RosterOptimizer
+from roster_advisor.utils.download import download_data, print_data_status, check_data_status
 
 
 def _print_error(message: str) -> None:
@@ -22,11 +22,11 @@ def _print_success(message: str) -> None:
 
 def _run_simulation(args) -> None:
     """Run simulation using parameters with internal data retrieval."""
-    from .utils.config import (
+    from roster_advisor.utils.config import (
         create_config,
         ConfigurationError,
     )
-    from .utils.data_registry import (
+    from roster_advisor.utils.data_registry import (
         RaceNotFoundError,
         TeamNotFoundError,
         SchemeNotFoundError,
@@ -127,13 +127,13 @@ def _run_simulation(args) -> None:
 
 def _list_resources(args) -> None:
     """List available resources (teams, races, schemes)."""
-    from .utils.config import (
+    from roster_advisor.utils.config import (
         list_available_teams,
         list_available_races,
         list_available_schemes,
         check_system_status,
     )
-    from .utils.data_registry import DataNotFoundError
+    from roster_advisor.utils.data_registry import DataNotFoundError
     
     try:
         if args.resource == "teams":
@@ -197,8 +197,8 @@ def _list_resources(args) -> None:
 
 def _show_race_info(args) -> None:
     """Show information about a specific race."""
-    from .utils.config import get_race_info
-    from .utils.data_registry import RaceNotFoundError
+    from roster_advisor.utils.config import get_race_info
+    from roster_advisor.utils.data_registry import RaceNotFoundError
     
     try:
         info = get_race_info(args.race)
@@ -213,8 +213,8 @@ def _show_race_info(args) -> None:
 
 def _show_model_features(args) -> None:
     """Show or export the feature names from a model."""
-    from .models.xgb_wrapper import load_xgb_model, get_model_feature_names
-    from .utils.data_registry import get_registry, SchemeNotFoundError
+    from roster_advisor.models.xgb_wrapper import load_xgb_model, get_model_feature_names
+    from roster_advisor.utils.data_registry import get_registry, SchemeNotFoundError
     import json
     
     try:
@@ -264,30 +264,30 @@ def main() -> None:
         epilog="""
 Examples:
   # Run simulation
-  roster-advisor run --team "Israel - Premier Tech" --race "Giro d'Italia" --scheme time_lag
+  python main.py run --team "Israel - Premier Tech" --race "Giro d'Italia" --scheme time_lag
 
   # Run with all options
-  roster-advisor run -t "Israel - Premier Tech" -r "Giro d'Italia" -s time_lag \\
+  python main.py run -t "Israel - Premier Tech" -r "Giro d'Italia" -s time_lag \\
     --num-cyclists 18 --roster-size 8 --year 2026 --output-dir results
 
   # List available teams/races/schemes
-  roster-advisor list teams
-  roster-advisor list races
-  roster-advisor list schemes
-  roster-advisor list status
+  python main.py list teams
+  python main.py list races
+  python main.py list schemes
+  python main.py list status
 
   # Get race information
-  roster-advisor info "Giro d'Italia"
+  python main.py info "Giro d'Italia"
 
   # Analyze simulation results (team-based leaders)
-  roster-advisor recommend --csv results/simulation.csv --output recommendations.csv
+  python main.py recommend --csv results/simulation.csv --output recommendations.csv
 
   # Analyze individual rider performance
-  roster-advisor recommend --csv results/simulation.csv --output individual.csv --individual
+  python main.py recommend --csv results/simulation.csv --output individual.csv --individual
 
   # Download required datasets from Zenodo
-  roster-advisor download-data
-  roster-advisor download-data --status  # Check data status only
+  python main.py download-data
+  python main.py download-data --status  # Check data status only
         """,
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -453,10 +453,10 @@ Examples:
         help="Analyze each rider's personal best rank instead of team-based leaders",
     )
     rec_parser.add_argument(
-        "--top_leaders",
+        "--top_ranks",
         type=int,
         default=None,
-        help="Number of top leaders to show in team mode (default: all)",
+        help="Number of top ranks achieved by riders in the rider pool ",
     )
     rec_parser.add_argument(
         "--top_helpers",
@@ -502,7 +502,7 @@ Examples:
         if args.individual:
             analyze_individual_leaders(args.csv, args.output, top_helpers=args.top_helpers)
         else:
-            analyze_single_file(args.csv, args.output, top_leaders=args.top_leaders)
+            analyze_single_file(args.csv, args.output, top_ranks=args.top_ranks)
     elif args.command == "download-data":
         if args.status:
             print_data_status()

@@ -5,7 +5,7 @@ from typing import List, Optional
 
 import pandas as pd
 
-from ..models.xgb_wrapper import load_xgb_model
+from roster_advisor.models.xgb_wrapper import load_xgb_model
 
 
 def load_feature_columns(feature_columns: Optional[List[str]], feature_columns_path: Optional[str]) -> List[str]:
