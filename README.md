@@ -305,10 +305,10 @@ python main.py recommend --csv results/simulation.csv --output individual.csv --
 
 | name | best_rank | best_rank_group | occurrences_in_best_group | total_occurrences | confidence | avg_personal_rank | top helpers (confidence) |
 |------|-----------|-----------------|---------------------------|-------------------|------------|-------------------|--------------------------|
-| GIRMAY Biniam | 6 | Rnk(6,10) | 3978 | 3978 | 100.0% | 7.63 | ACKERMANN (100%), BENNETT (75.5%), BLACKMORE (49.7%) |
+| GIRMAY Biniam | 6 | Rnk(6,10) | 10600 | 10600 | 100.0% | 7.63 | ACKERMANN (100%), BENNETT (75.5%), BLACKMORE (49.7%) |
 | ACKERMANN Pascal | 8 | Rnk(6,10) | 4828 | 10600 | 45.55% | 11.15 | BENNETT (71.9%), BLACKMORE (63.1%), BOIVIN (54.3%) |
-| STRONG Corbin | 10 | Rnk(6,10) | 385 | 3907 | 9.85% | 12.8 | ACKERMANN (100%), BENNETT (73.8%), BLACKMORE (59.2%) |
-| PICKRELL Riley | 13 | Rnk(11,15) | 34 | 3914 | 0.87% | 19.02 | ACKERMANN (100%), RAISBERG (100%), BENNETT (76.5%) |
+| STRONG Corbin | 10 | Rnk(6,10) | 1044 | 10600 | 9.85% | 12.8 | ACKERMANN (100%), BENNETT (73.8%), BLACKMORE (59.2%) |
+| PICKRELL Riley | 13 | Rnk(11,15) | 85 | 10600 | 0.87% | 19.02 | ACKERMANN (100%), RAISBERG (100%), BENNETT (76.5%) |
 
 **Interpretation:** GIRMAY Biniam's personal best rank is 6. In every combination he appeared in (100% confidence) he achieved a rank within the Rnk(6,10) bucket. ACKERMANN Pascal appeared in all 10,600 combinations but only reached the Rnk(6,10) bucket in 45.55% of them — the remaining appearances placed him in weaker rank groups, meaning the supporting cast matters significantly for his performance.
 
